@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bergen's Game of Life — cells that learn to match their world</title>
+<meta name="description" content="A Game of Life where every cell is a tiny listener. Cells that keep pace with their neighborhood thrive; cells that listen too fast, too slow, or too loud fail in three visible ways.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #121826;
+    --line: #1f2937;
+    --text: #e5e9f0;
+    --dim: #8b95a7;
+    --healthy: #34d399;
+    --osc: #fbbf24;
+    --freeze: #60a5fa;
+    --overload: #f87171;
+    --accent: #34d399;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 0 5%;
+  }
+  header { max-width: 860px; width: 100%; text-align: center; padding: 40px 0 8px; }
+  h1 { font-size: clamp(1.6rem, 4vw, 2.6rem); font-weight: 700; letter-spacing: -0.02em; }
+  .tagline { color: var(--dim); margin-top: 8px; font-size: 1.05rem; }
+  main { max-width: 860px; width: 100%; }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    padding: 16px 0 12px;
+  }
+  button, select {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 14px; font: 500 0.9rem 'Inter', sans-serif;
+    cursor: pointer; transition: border-color .15s;
+  }
+  button:hover, select:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #06281c; border-color: var(--accent); font-weight: 600; }
+  .canvas-wrap { position: relative; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #070a10; }
+  canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; cursor: crosshair; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 14px; justify-content: center;
+    padding: 12px 0; font-size: 0.85rem; color: var(--dim);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  .stats {
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--dim);
+    text-align: center; padding-bottom: 10px; min-height: 1.4em;
+  }
+
+  .sliders {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 14px 24px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 18px 20px; margin: 8px 0 24px;
+  }
+  .sliders label { font-size: 0.82rem; color: var(--dim); display: block; }
+  .sliders label b { color: var(--text); font-weight: 600; }
+  .sliders input[type=range] { width: 100%; accent-color: var(--accent); margin-top: 4px; }
+  .sliders .val { font-family: 'IBM Plex Mono', monospace; color: var(--accent); }
+  .sliders .hint { font-size: 0.72rem; margin-top: 2px; }
+
+  details {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 18px 22px; margin-bottom: 22px;
+  }
+  summary { cursor: pointer; font-weight: 600; font-size: 1rem; }
+  details p, details li { color: var(--dim); font-size: 0.92rem; line-height: 1.65; margin-top: 10px; }
+  details table { border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; width: 100%; }
+  details th, details td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; color: var(--dim); }
+  details th { color: var(--text); font-weight: 600; }
+  details code { font-family: 'IBM Plex Mono', monospace; color: var(--accent); font-size: 0.85em; }
+  .note {
+    border-left: 3px solid var(--osc); padding: 10px 14px; margin-top: 14px;
+    background: rgba(251,191,36,0.06); border-radius: 0 8px 8px 0;
+  }
+  footer {
+    max-width: 860px; width: 100%; text-align: center; color: var(--dim);
+    font-size: 0.82rem; padding: 10px 0 40px; line-height: 1.7;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bergen's Game of Life</h1>
+  <p class="tagline">Every cell is a tiny listener. The ones that keep pace with their world thrive.<br>
+  The ones that listen too fast, too slow, or too loud fail — in three different, visible ways.</p>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button id="playBtn" class="primary">▶ Play</button>
+    <button id="stepBtn">Step</button>
+    <button id="resetBtn">Reseed</button>
+    <button id="clearBtn">Clear</button>
+    <select id="modeSel" title="Rule set">
+      <option value="bergen">Bergen mode (listening cells)</option>
+      <option value="conway">Classic Conway (baseline)</option>
+    </select>
+    <select id="speedSel" title="Speed">
+      <option value="120">Slow</option>
+      <option value="60" selected>Normal</option>
+      <option value="20">Fast</option>
+      <option value="0">Max</option>
+    </select>
+  </div>
+
+  <div class="canvas-wrap"><canvas id="cv" width="960" height="600"></canvas></div>
+
+  <div class="legend" id="legend">
+    <span><span class="dot" style="background:var(--healthy)"></span> In tune (thriving)</span>
+    <span><span class="dot" style="background:var(--osc)"></span> Jittery (listening too fast)</span>
+    <span><span class="dot" style="background:var(--freeze)"></span> Frozen (listening too slow)</span>
+    <span><span class="dot" style="background:var(--overload)"></span> Overwhelmed (turned up too loud)</span>
+    <span style="opacity:.7">Click or drag on the grid to paint cells</span>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="sliders" id="sliders">
+    <label><b>Learning</b> — how quickly cells adjust to their surroundings
+      <input type="range" id="ueSlider" min="0" max="100" value="50">
+      <div class="hint">at <span class="val" id="ueVal">normal</span> — drag to 0 and watch cells stop adapting</div>
+    </label>
+    <label><b>World noise</b> — random flips injected into the grid
+      <input type="range" id="noiseSlider" min="0" max="100" value="0">
+      <div class="hint"><span class="val" id="noiseVal">calm</span> — turn it up to stress-test the listeners</div>
+    </label>
+  </div>
+
+  <details>
+    <summary>About the math (one click deep, as promised)</summary>
+    <p>This is a variation on Conway's Game of Life where each live cell carries five continuous
+    parameters instead of a single alive/dead bit. The parameters are the five receiver primitives
+    of <strong>RPCS-1</strong> (IMM Paper 9):</p>
+    <table>
+      <tr><th>Primitive</th><th>Meaning here</th><th>Range</th></tr>
+      <tr><td><code>TI</code> — temporal integration</td><td>How long a memory the cell averages its neighborhood over (EMA window)</td><td>1–16 steps</td></tr>
+      <tr><td><code>SG</code> — sensitivity / gain</td><td>How strongly it amplifies what it detects</td><td>0.2–3.0</td></tr>
+      <tr><td><code>FT</code> — filter threshold</td><td>Minimum neighborhood signal that registers at all</td><td>0–0.6</td></tr>
+      <tr><td><code>UE</code> — update eagerness</td><td>Learning rate: how fast the cell re-tunes its own TI</td><td>0–0.5</td></tr>
+      <tr><td><code>AR</code> — anticipation</td><td>A directional guess about the neighborhood's next move; correct guesses earn a small energy bonus</td><td>±1</td></tr>
+    </table>
+    <p>The environment coordinate is <strong>local entropy H</strong>: half spatial
+    (binary entropy of the 8-neighborhood's alive fraction), half temporal (fraction of
+    neighbors that flipped last step). The survival rule is the
+    <strong>Matching Principle</strong> (Pred-09-5): a cell earns energy in proportion to how well
+    <code>TI ≈ 1/H</code> holds — long memory in a calm world, short memory in a noisy one.
+    Mismatch is scored symmetrically in log space.</p>
+    <p>Mismatched cells drift into the three failure modes of IMM Paper 11 (Theorem 11-2):</p>
+    <ul style="margin-left:1.2em">
+      <li><strong style="color:var(--osc)">Oscillation</strong> — TI far below 1/H: the cell reacts to every flicker.</li>
+      <li><strong style="color:var(--freeze)">Freeze / rigidity</strong> — TI far above 1/H: the cell stops responding to real change.</li>
+      <li><strong style="color:var(--overload)">Overload</strong> — SG × H too high: too much gain in too noisy a world drains energy directly.</li>
+    </ul>
+    <p>Births inherit the neighborhood's mean TI (culture, not genetics) plus noise. The
+    <em>Learning</em> slider scales every cell's UE; at zero, cells cannot re-tune and failure
+    modes accumulate. Classic Conway (B3/S23) is included as the baseline mode for contrast.</p>
+    <div class="note">
+      <strong>What this is and isn't:</strong> this simulation is an <em>illustration</em> of
+      IMM/RPCS-1 concepts — an artistic sandbox, not evidence. Nothing that happens on this grid
+      bears on whether any IMM claim is true. The Matching Principle is a registered prediction
+      of the framework, not an established law.
+    </div>
+    <p>Engine and unit tests are in this site's repository. The simulation is deterministic
+    given a seed (mulberry32 PRNG).</p>
+  </details>
+</main>
+
+<footer>
+  An illustration of ideas from the <a href="https://doi.org/10.5281/zenodo.19697792" target="_blank" rel="noopener noreferrer">Information Manifold Model paper series</a>
+  · receiver tuning in practice at <a href="https://rpcs1.dev" target="_blank" rel="noopener noreferrer">rpcs1.dev</a><br>
+  Baseline rules by John Conway (1970). Source on <a href="https://github.com/travisbergen2/Bergen-s_Game_of_Life" target="_blank" rel="noopener noreferrer">GitHub</a>.
+</footer>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  "use strict";
+  const L = window.BergenLife;
+  const GW = 160, GH = 100, CELL = 6;
+  const cv = document.getElementById("cv");
+  cv.width = GW * CELL; cv.height = GH * CELL;
+  const ctx = cv.getContext("2d");
+
+  const COLORS = {};
+  COLORS[L.DEAD] = null;
+  COLORS[L.HEALTHY] = [52, 211, 153];
+  COLORS[L.OSCILLATION] = [251, 191, 36];
+  COLORS[L.FREEZE] = [96, 165, 250];
+  COLORS[L.OVERLOAD] = [248, 113, 113];
+
+  let world, playing = false, timer = null, noiseLevel = 0, ueScale = 1;
+
+  function newWorld(mode, seed) {
+    world = new L.World(GW, GH, { mode, seed: seed == null ? (Math.random() * 1e9) | 0 : seed });
+    world.seedRandom();
+    applyUE();
+    draw(); updateStats();
+  }
+
+  function applyUE() {
+    if (!world) return;
+    const p = L.PARAMS;
+    for (let i = 0; i < GW * GH; i++) {
+      world.ue[i] = Math.min(p.UE_MAX, world.ue[i]); // keep base
+    }
+  }
+
+  function injectNoise() {
+    if (noiseLevel <= 0) return;
+    const flips = Math.floor((noiseLevel / 100) * GW * GH * 0.01);
+    for (let k = 0; k < flips; k++) {
+      const x = (world.rng() * GW) | 0, y = (world.rng() * GH) | 0;
+      world.setAlive(x, y, !world.getAlive(x, y));
+    }
+  }
+
+  function scaleUEStep() {
+    // Learning slider: scale every live cell's effective UE this step by ueScale.
+    // Implemented by temporarily rescaling; engine reads ue[] directly, so we
+    // store base UE once and write scaled values.
+    if (!world._baseUE) world._baseUE = new Float32Array(world.ue);
+    if (world._baseUE.length !== world.ue.length) world._baseUE = new Float32Array(world.ue);
+    for (let i = 0; i < world.ue.length; i++) {
+      // newborn cells got fresh random UE; refresh the base for those
+      if (world._baseUE[i] === 0 && world.ue[i] !== 0) world._baseUE[i] = world.ue[i];
+      world.ue[i] = world._baseUE[i] * ueScale;
+    }
+  }
+
+  function tick() {
+    injectNoise();
+    if (world.mode === L.MODE_BERGEN) scaleUEStep();
+    world.step();
+    draw(); updateStats();
+  }
+
+  function draw() {
+    ctx.fillStyle = "#070a10";
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    for (let y = 0; y < GH; y++) {
+      for (let x = 0; x < GW; x++) {
+        const i = y * GW + x;
+        if (!world.alive[i]) continue;
+        const c = COLORS[world.status[i]] || COLORS[L.HEALTHY];
+        const e = world.mode === L.MODE_BERGEN ? 0.45 + 0.55 * world.energy[i] : 1;
+        ctx.fillStyle = `rgb(${(c[0]*e)|0},${(c[1]*e)|0},${(c[2]*e)|0})`;
+        ctx.fillRect(x * CELL, y * CELL, CELL - 1, CELL - 1);
+      }
+    }
+  }
+
+  function updateStats() {
+    const s = world.stats();
+    const el = document.getElementById("stats");
+    if (world.mode === L.MODE_CONWAY) {
+      el.textContent = `step ${s.step} · alive ${s.alive}`;
+    } else {
+      el.textContent = `step ${s.step} · alive ${s.alive} · in tune ${s.healthy} · jittery ${s.oscillation} · frozen ${s.freeze} · overwhelmed ${s.overload}`;
+    }
+  }
+
+  function setPlaying(on) {
+    playing = on;
+    document.getElementById("playBtn").textContent = on ? "⏸ Pause" : "▶ Play";
+    document.getElementById("playBtn").classList.toggle("primary", !on);
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (on) loop();
+  }
+
+  function loop() {
+    if (!playing) return;
+    tick();
+    const delay = +document.getElementById("speedSel").value;
+    timer = setTimeout(loop, delay);
+  }
+
+  // --- controls ---
+  document.getElementById("playBtn").onclick = () => setPlaying(!playing);
+  document.getElementById("stepBtn").onclick = () => { setPlaying(false); tick(); };
+  document.getElementById("resetBtn").onclick = () => { newWorld(document.getElementById("modeSel").value); };
+  document.getElementById("clearBtn").onclick = () => { setPlaying(false); world.clear(); world._baseUE = null; draw(); updateStats(); };
+  document.getElementById("modeSel").onchange = (e) => {
+    const showBergen = e.target.value === "bergen";
+    document.getElementById("sliders").style.display = showBergen ? "" : "none";
+    newWorld(e.target.value);
+  };
+  document.getElementById("ueSlider").oninput = (e) => {
+    ueScale = e.target.value / 50; // 0..2, 1 at center
+    const v = +e.target.value;
+    document.getElementById("ueVal").textContent =
+      v === 0 ? "off — no adaptation" : v < 35 ? "slow" : v <= 65 ? "normal" : "eager";
+  };
+  document.getElementById("noiseSlider").oninput = (e) => {
+    noiseLevel = +e.target.value;
+    document.getElementById("noiseVal").textContent =
+      noiseLevel === 0 ? "calm" : noiseLevel < 40 ? "breezy" : noiseLevel < 75 ? "stormy" : "chaotic";
+  };
+
+  // paint with pointer
+  let painting = false;
+  function paint(ev) {
+    const rect = cv.getBoundingClientRect();
+    const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+    const py = (ev.touches ? ev.touches[0].clientY : ev.clientY) - rect.top;
+    const x = Math.floor(px / rect.width * GW);
+    const y = Math.floor(py / rect.height * GH);
+    if (x >= 0 && x < GW && y >= 0 && y < GH) {
+      world.setAlive(x, y, true);
+      if (world._baseUE) world._baseUE[world.idx(x, y)] = world.ue[world.idx(x, y)];
+      draw(); updateStats();
+    }
+  }
+  cv.addEventListener("pointerdown", (e) => { painting = true; paint(e); });
+  cv.addEventListener("pointermove", (e) => { if (painting) paint(e); });
+  window.addEventListener("pointerup", () => { painting = false; });
+  cv.addEventListener("touchstart", (e) => { e.preventDefault(); painting = true; paint(e); }, { passive: false });
+  cv.addEventListener("touchmove", (e) => { e.preventDefault(); if (painting) paint(e); }, { passive: false });
+  window.addEventListener("touchend", () => { painting = false; });
+
+  // boot
+  newWorld("bergen", 42);
+  setPlaying(true);
+})();
+</script>
+</body>
+</html>
