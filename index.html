@@ -235,6 +235,14 @@
     else if (preset === "showcase" || preset === "twoworlds") modeSel.value = "bergen";
     document.getElementById("sliders").style.display = modeSel.value === "bergen" ? "" : "none";
     newWorld(modeSel.value);
+    if (preset === "showcase" || preset === "twoworlds") {
+      // start paused with one classification step so the colonies show their
+      // colors; the visitor presses Play (or Step) to watch what happens next
+      setPlaying(false);
+      tick();
+    } else {
+      setPlaying(true);
+    }
   }
 
   function applyUE() {
