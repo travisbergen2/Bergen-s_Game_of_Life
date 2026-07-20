@@ -127,6 +127,70 @@
     this.syncPrev();
   };
 
+  // ---- Preset seeds ----
+
+  // Two worlds: calm sparse left half vs dense noisy right half.
+  // Watch TI adapt to opposite targets on each side.
+  World.prototype.seedTwoWorlds = function () {
+    this.clear();
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        const i = y * this.w + x;
+        const density = x < this.w / 2 ? 0.10 : 0.45;
+        this.randomizeCell(i, this.rng() < density);
+      }
+    }
+    this.syncPrev();
+  };
+
+  // Failure showcase: three colonies with deliberately mis-set, non-learning
+  // receivers (UE=0), plus a sparse background soup. Each colony displays one
+  // failure mode, then pays for it.
+  World.prototype.seedShowcase = function () {
+    this.clear();
+    const r = this.rng;
+    for (let i = 0; i < this.w * this.h; i++) {
+      this.randomizeCell(i, r() < 0.08);
+    }
+    const stamp = (cx, cy, rad, density, setup) => {
+      for (let dy = -rad; dy <= rad; dy++) {
+        for (let dx = -rad; dx <= rad; dx++) {
+          if (dx * dx + dy * dy > rad * rad) continue;
+          if (r() >= density) continue;
+          const i = this.idx(cx + dx, cy + dy);
+          this.randomizeCell(i, true);
+          setup(i);
+        }
+      }
+    };
+    const w = this.w, h = this.h, rad = Math.max(4, Math.floor(Math.min(w, h) / 7));
+    // Jittery colony: solid calm block, but TI stuck at minimum (listens too fast)
+    stamp(Math.floor(w * 0.2), Math.floor(h * 0.5), rad, 1.0, (i) => {
+      this.ti[i] = P.TI_MIN; this.ue[i] = 0; this.sg[i] = 1.0;
+    });
+    // Frozen colony: scattered flickery region, but TI stuck at maximum (listens too slow)
+    stamp(Math.floor(w * 0.5), Math.floor(h * 0.5), rad, 0.55, (i) => {
+      this.ti[i] = P.TI_MAX; this.ue[i] = 0; this.sg[i] = 1.0;
+    });
+    // Overloaded colony: scattered noisy region with gain cranked to maximum
+    stamp(Math.floor(w * 0.8), Math.floor(h * 0.5), rad, 0.55, (i) => {
+      this.sg[i] = P.SG_MAX; this.ue[i] = 0;
+    });
+    this.syncPrev();
+  };
+
+  // Gliders: classic Conway gliders (intended for MODE_CONWAY).
+  World.prototype.seedGliders = function () {
+    this.clear();
+    const glider = [[1, 0], [2, 1], [0, 2], [1, 2], [2, 2]];
+    const spots = [[4, 4], [Math.floor(this.w / 2), 8], [8, Math.floor(this.h / 2)],
+                   [Math.floor(this.w * 0.7), Math.floor(this.h * 0.6)]];
+    for (const [ox, oy] of spots) {
+      for (const [x, y] of glider) this.setAlive(ox + x, oy + y, true);
+    }
+    this.syncPrev();
+  };
+
   World.prototype.clear = function () {
     this.energy.fill(0); this.alive.fill(0); this.prevAlive.fill(0);
     this.status.fill(DEAD); this.flipCount.fill(0); this.integrated.fill(0);

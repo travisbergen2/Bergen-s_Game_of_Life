@@ -62,6 +62,17 @@ failure modes accumulate.
 
 The simulation is deterministic given a seed (mulberry32 PRNG).
 
+**Preset worlds** (dropdown in the toolbar):
+
+- **Random soup** — uniform random seed (default).
+- **Two worlds** — calm sparse left half vs dense noisy right half; the same
+  learning rule drives TI to opposite targets on each side.
+- **Failure showcase** — three colonies with deliberately mis-set,
+  non-learning receivers (UE = 0): one listening too fast (oscillation), one
+  too slow (freeze), one turned up too loud (overload). Each displays its
+  failure color, then pays for it.
+- **Gliders** — classic Conway gliders (auto-switches to baseline mode).
+
 ## Files
 
 - `index.html` — the site (vanilla JS + Canvas, no build step, no dependencies)
@@ -81,7 +92,8 @@ node test/engine.test.js
 Covers: Conway blinker/glider/empty-world correctness, entropy properties,
 Matching-Principle kernel shape and sign conventions, failure-mode
 classification, UE adaptation (mean |mismatch| shrinks over time),
-determinism per seed, and boundedness invariants. 15 tests.
+determinism per seed, boundedness invariants, and preset seeds (density
+split, all three failure modes appearing, glider conservation). 19 tests.
 
 ## Credits
 

@@ -109,6 +109,12 @@
       <option value="bergen">Bergen mode (listening cells)</option>
       <option value="conway">Classic Conway (baseline)</option>
     </select>
+    <select id="presetSel" title="Starting world">
+      <option value="random">Preset: Random soup</option>
+      <option value="twoworlds">Preset: Two worlds (calm | noisy)</option>
+      <option value="showcase">Preset: Failure showcase</option>
+      <option value="gliders">Preset: Gliders (Conway)</option>
+    </select>
     <select id="speedSel" title="Speed">
       <option value="120">Slow</option>
       <option value="60" selected>Normal</option>
@@ -168,6 +174,12 @@
     <p>Births inherit the neighborhood's mean TI (culture, not genetics) plus noise. The
     <em>Learning</em> slider scales every cell's UE; at zero, cells cannot re-tune and failure
     modes accumulate. Classic Conway (B3/S23) is included as the baseline mode for contrast.</p>
+    <p><strong>Presets:</strong> <em>Two worlds</em> seeds a calm sparse half against a dense
+    noisy half — the same learning rule drives TI to opposite targets on each side.
+    <em>Failure showcase</em> plants three colonies with deliberately mis-set, non-learning
+    receivers (UE&nbsp;=&nbsp;0): one listening too fast, one too slow, one turned up too loud —
+    each displays its failure color, then pays for it. <em>Gliders</em> seeds classic Conway
+    gliders in baseline mode.</p>
     <div class="note">
       <strong>What this is and isn't:</strong> this simulation is an <em>illustration</em> of
       IMM/RPCS-1 concepts — an artistic sandbox, not evidence. Nothing that happens on this grid
@@ -206,9 +218,23 @@
 
   function newWorld(mode, seed) {
     world = new L.World(GW, GH, { mode, seed: seed == null ? (Math.random() * 1e9) | 0 : seed });
-    world.seedRandom();
+    const preset = document.getElementById("presetSel").value;
+    if (preset === "twoworlds") world.seedTwoWorlds();
+    else if (preset === "showcase") world.seedShowcase();
+    else if (preset === "gliders") world.seedGliders();
+    else world.seedRandom();
+    world._baseUE = null;
     applyUE();
     draw(); updateStats();
+  }
+
+  function applyPreset(preset) {
+    // Presets that imply a rule set switch the mode dropdown accordingly.
+    const modeSel = document.getElementById("modeSel");
+    if (preset === "gliders") modeSel.value = "conway";
+    else if (preset === "showcase" || preset === "twoworlds") modeSel.value = "bergen";
+    document.getElementById("sliders").style.display = modeSel.value === "bergen" ? "" : "none";
+    newWorld(modeSel.value);
   }
 
   function applyUE() {
@@ -298,6 +324,7 @@
     document.getElementById("sliders").style.display = showBergen ? "" : "none";
     newWorld(e.target.value);
   };
+  document.getElementById("presetSel").onchange = (e) => applyPreset(e.target.value);
   document.getElementById("ueSlider").oninput = (e) => {
     ueScale = e.target.value / 50; // 0..2, 1 at center
     const v = +e.target.value;
