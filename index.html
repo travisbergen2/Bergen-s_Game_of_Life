@@ -44,6 +44,10 @@
   }
   button:hover, select:hover { border-color: var(--accent); }
   button.primary { background: var(--accent); color: #06281c; border-color: var(--accent); font-weight: 600; }
+  .btngroup { display: inline-flex; gap: 8px; }
+  .danger-group { margin-left: 26px; padding-left: 14px; border-left: 1px solid var(--line); }
+  button.danger { color: var(--dim); }
+  button.danger:hover { border-color: var(--overload); color: var(--overload); }
   .canvas-wrap { position: relative; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #070a10; }
   canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; cursor: crosshair; }
 
@@ -101,11 +105,15 @@
 
 <main>
   <div class="toolbar">
-    <button id="playBtn" class="primary">▶ Play</button>
-    <button id="backBtn" title="Rewind one step (up to 120)">◀ Back</button>
-    <button id="stepBtn">Step ▶</button>
-    <button id="resetBtn">Reseed</button>
-    <button id="clearBtn">Clear</button>
+    <span class="btngroup">
+      <button id="playBtn" class="primary">▶ Play</button>
+      <button id="backBtn" title="Rewind one step (up to 120)">◀ Back</button>
+      <button id="stepBtn">Step ▶</button>
+    </span>
+    <span class="btngroup danger-group">
+      <button id="resetBtn" class="danger" title="Replace the world (undoable with ◀ Back)">Reseed</button>
+      <button id="clearBtn" class="danger" title="Empty the grid (undoable with ◀ Back)">Clear</button>
+    </span>
     <select id="modeSel" title="Rule set">
       <option value="bergen">Bergen mode (listening cells)</option>
       <option value="conway">Classic Conway (baseline)</option>
@@ -229,9 +237,15 @@
     else if (preset === "gliders") world.seedGliders();
     else world.seedRandom();
     world._baseUE = null;
-    history = [];
     applyUE();
     draw(); updateStats();
+  }
+
+  function rememberWorld() {
+    // called before destructive actions (Reseed/Clear) so ◀ Back undoes them
+    if (!world) return;
+    history.push(world.snapshot());
+    if (history.length > HISTORY_MAX) history.shift();
   }
 
   function applyPreset(preset) {
@@ -295,6 +309,13 @@
     const snap = history.pop();
     if (!snap) return;
     world.restore(snap);
+    // restoring can cross a Reseed/mode change — resync the controls
+    const modeSel = document.getElementById("modeSel");
+    if (modeSel.value !== world.mode) {
+      modeSel.value = world.mode;
+      document.getElementById("sliders").style.display = world.mode === "bergen" ? "" : "none";
+    }
+    world._baseUE = null;
     draw(); updateStats();
   }
 
@@ -367,14 +388,14 @@
   document.getElementById("playBtn").onclick = () => setPlaying(!playing);
   document.getElementById("stepBtn").onclick = () => { setPlaying(false); tick(); };
   document.getElementById("backBtn").onclick = stepBack;
-  document.getElementById("resetBtn").onclick = () => { newWorld(document.getElementById("modeSel").value); };
-  document.getElementById("clearBtn").onclick = () => { setPlaying(false); world.clear(); world._baseUE = null; history = []; draw(); updateStats(); };
+  document.getElementById("resetBtn").onclick = () => { rememberWorld(); newWorld(document.getElementById("modeSel").value); };
+  document.getElementById("clearBtn").onclick = () => { rememberWorld(); setPlaying(false); world.clear(); world._baseUE = null; draw(); updateStats(); };
   document.getElementById("modeSel").onchange = (e) => {
     const showBergen = e.target.value === "bergen";
     document.getElementById("sliders").style.display = showBergen ? "" : "none";
     newWorld(e.target.value);
   };
-  document.getElementById("presetSel").onchange = (e) => applyPreset(e.target.value);
+  document.getElementById("presetSel").onchange = (e) => { rememberWorld(); applyPreset(e.target.value); };
   document.getElementById("ueSlider").oninput = (e) => {
     ueScale = e.target.value / 50; // 0..2, 1 at center
     const v = +e.target.value;
