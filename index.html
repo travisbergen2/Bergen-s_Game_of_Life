@@ -286,6 +286,10 @@
     ctx.fillStyle = "#070a10";
     ctx.fillRect(0, 0, cv.width, cv.height);
     const bergen = world.mode === L.MODE_BERGEN;
+    // orbiting light: one full revolution every 75 seconds, starting from
+    // the upper-left (φ = 45° points the lit slopes toward down-right)
+    const phi = Math.PI / 4 + (performance.now() / 1000) * (2 * Math.PI / 75);
+    const lightX = Math.cos(phi), lightY = Math.sin(phi);
     for (let y = 0; y < GH; y++) {
       for (let x = 0; x < GW; x++) {
         const i = y * GW + x;
@@ -294,23 +298,21 @@
         let r = c[0], g = c[1], b = c[2];
         if (bergen) {
           const e = world.energy[i];
-          // emboss lighting: light from the upper-left. The brightness bump is
-          // the energy gradient against the up-left neighbor (dead cells count
-          // as 0, so blob edges facing the light catch strong highlights).
-          const eUL = world.energy[world.idx(x - 1, y - 1)] * world.alive[world.idx(x - 1, y - 1)];
-          const eDR = world.energy[world.idx(x + 1, y + 1)] * world.alive[world.idx(x + 1, y + 1)];
-          // classic emboss: positive when this cell rises above its up-left
-          // neighbor (lit slope), negative when the down-right neighbor rises
-          // above it (shadowed slope)
-          const relief = 0.7 * (e - eUL) - 0.3 * (eDR - e);
-          let lum = 0.40 + 0.60 * e + 0.38 * relief;
+          // bump-mapped lighting on the energy field with an orbiting light.
+          // Central-difference gradient (dead cells carry energy 0, so blob
+          // edges get strong slopes); relief = slope projected onto the
+          // current light direction.
+          const gx = world.energy[world.idx(x + 1, y)] - world.energy[world.idx(x - 1, y)];
+          const gy = world.energy[world.idx(x, y + 1)] - world.energy[world.idx(x, y - 1)];
+          const relief = gx * lightX + gy * lightY;
+          let lum = 0.38 + 0.58 * e + 0.62 * relief;
           if (lum <= 1) {
-            const l = Math.max(lum, 0.15);
+            const l = Math.max(lum, 0.10);
             r *= l; g *= l; b *= l;
           } else {
-            // gentle specular: blend a little toward white on lit edges,
-            // keeping the status color clearly legible
-            const s = Math.min((lum - 1) * 0.7, 0.35);
+            // specular: blend toward white on lit edges, capped so the
+            // status color stays legible
+            const s = Math.min((lum - 1) * 0.8, 0.5);
             r += (255 - r) * s; g += (255 - g) * s; b += (255 - b) * s;
           }
         }
@@ -392,6 +394,9 @@
   // boot
   newWorld("bergen", 42);
   setPlaying(true);
+  // continuous render loop: the light keeps orbiting even when the
+  // simulation is paused (simulation stepping stays on its own timer)
+  (function renderLoop() { draw(); requestAnimationFrame(renderLoop); })();
 })();
 </script>
 </body>
