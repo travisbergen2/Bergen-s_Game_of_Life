@@ -285,13 +285,35 @@
   function draw() {
     ctx.fillStyle = "#070a10";
     ctx.fillRect(0, 0, cv.width, cv.height);
+    const bergen = world.mode === L.MODE_BERGEN;
     for (let y = 0; y < GH; y++) {
       for (let x = 0; x < GW; x++) {
         const i = y * GW + x;
         if (!world.alive[i]) continue;
         const c = COLORS[world.status[i]] || COLORS[L.HEALTHY];
-        const e = world.mode === L.MODE_BERGEN ? 0.45 + 0.55 * world.energy[i] : 1;
-        ctx.fillStyle = `rgb(${(c[0]*e)|0},${(c[1]*e)|0},${(c[2]*e)|0})`;
+        let r = c[0], g = c[1], b = c[2];
+        if (bergen) {
+          const e = world.energy[i];
+          // emboss lighting: light from the upper-left. The brightness bump is
+          // the energy gradient against the up-left neighbor (dead cells count
+          // as 0, so blob edges facing the light catch strong highlights).
+          const eUL = world.energy[world.idx(x - 1, y - 1)] * world.alive[world.idx(x - 1, y - 1)];
+          const eDR = world.energy[world.idx(x + 1, y + 1)] * world.alive[world.idx(x + 1, y + 1)];
+          // classic emboss: positive when this cell rises above its up-left
+          // neighbor (lit slope), negative when the down-right neighbor rises
+          // above it (shadowed slope)
+          const relief = 0.7 * (e - eUL) - 0.3 * (eDR - e);
+          let lum = 0.35 + 0.65 * e + 0.85 * relief;
+          if (lum <= 1) {
+            const l = Math.max(lum, 0.12);
+            r *= l; g *= l; b *= l;
+          } else {
+            // specular: blend toward white for highlight edges
+            const s = Math.min(lum - 1, 0.85);
+            r += (255 - r) * s; g += (255 - g) * s; b += (255 - b) * s;
+          }
+        }
+        ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
         ctx.fillRect(x * CELL, y * CELL, CELL - 1, CELL - 1);
       }
     }
