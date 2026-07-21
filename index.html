@@ -303,13 +303,14 @@
           // neighbor (lit slope), negative when the down-right neighbor rises
           // above it (shadowed slope)
           const relief = 0.7 * (e - eUL) - 0.3 * (eDR - e);
-          let lum = 0.35 + 0.65 * e + 0.85 * relief;
+          let lum = 0.40 + 0.60 * e + 0.38 * relief;
           if (lum <= 1) {
-            const l = Math.max(lum, 0.12);
+            const l = Math.max(lum, 0.15);
             r *= l; g *= l; b *= l;
           } else {
-            // specular: blend toward white for highlight edges
-            const s = Math.min(lum - 1, 0.85);
+            // gentle specular: blend a little toward white on lit edges,
+            // keeping the status color clearly legible
+            const s = Math.min((lum - 1) * 0.7, 0.35);
             r += (255 - r) * s; g += (255 - g) * s; b += (255 - b) * s;
           }
         }
