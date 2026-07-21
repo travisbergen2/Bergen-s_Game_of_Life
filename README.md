@@ -92,8 +92,13 @@ node test/engine.test.js
 Covers: Conway blinker/glider/empty-world correctness, entropy properties,
 Matching-Principle kernel shape and sign conventions, failure-mode
 classification, UE adaptation (mean |mismatch| shrinks over time),
-determinism per seed, boundedness invariants, and preset seeds (density
-split, all three failure modes appearing, glider conservation). 19 tests.
+determinism per seed, boundedness invariants, snapshot/restore round-trip
+(rewind + replay reproduces the exact trajectory), and preset seeds (density
+split, all three failure modes appearing, glider conservation). 21 tests.
+
+**Step-back:** the ◀ Back button rewinds up to 120 steps. Snapshots include
+the RNG state, so rewinding and stepping forward replays the exact same
+trajectory — useful for dissecting cause and effect frame by frame.
 
 ## Credits
 

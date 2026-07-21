@@ -179,6 +179,37 @@ test("energies stay bounded in [0, 1]", () => {
   }
 });
 
+// ---------- Snapshot / restore (step-back) ----------
+
+test("snapshot/restore: rewind then replay reproduces the exact trajectory", () => {
+  const w = new L.World(24, 24, { mode: L.MODE_BERGEN, seed: 21 });
+  w.seedRandom();
+  for (let i = 0; i < 10; i++) w.step();
+  const snap = w.snapshot();
+  // record the "original future": 5 more steps
+  for (let i = 0; i < 5; i++) w.step();
+  const futureAlive = Array.from(w.alive);
+  const futureEnergy = Array.from(w.energy);
+  const futureStats = w.stats();
+  // rewind and replay
+  w.restore(snap);
+  assert.strictEqual(w.stats().step, 10);
+  for (let i = 0; i < 5; i++) w.step();
+  assert.deepStrictEqual(Array.from(w.alive), futureAlive, "alive diverged after replay");
+  assert.deepStrictEqual(Array.from(w.energy), futureEnergy, "energy diverged after replay");
+  assert.deepStrictEqual(w.stats(), futureStats, "stats diverged after replay");
+});
+
+test("snapshot is a deep copy (later steps don't mutate it)", () => {
+  const w = new L.World(16, 16, { mode: L.MODE_BERGEN, seed: 22 });
+  w.seedRandom();
+  w.step();
+  const snap = w.snapshot();
+  const aliveBefore = Array.from(snap.alive);
+  for (let i = 0; i < 8; i++) w.step();
+  assert.deepStrictEqual(Array.from(snap.alive), aliveBefore, "snapshot mutated by stepping");
+});
+
 // ---------- Preset seeds ----------
 
 test("preset twoWorlds: left half sparser than right half", () => {

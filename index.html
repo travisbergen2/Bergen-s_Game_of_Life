@@ -102,7 +102,8 @@
 <main>
   <div class="toolbar">
     <button id="playBtn" class="primary">▶ Play</button>
-    <button id="stepBtn">Step</button>
+    <button id="backBtn" title="Rewind one step (up to 120)">◀ Back</button>
+    <button id="stepBtn">Step ▶</button>
     <button id="resetBtn">Reseed</button>
     <button id="clearBtn">Clear</button>
     <select id="modeSel" title="Rule set">
@@ -215,6 +216,10 @@
   COLORS[L.OVERLOAD] = [248, 113, 113];
 
   let world, playing = false, timer = null, noiseLevel = 0, ueScale = 1;
+  // step-back history: full snapshots (including RNG state), so rewinding
+  // and replaying forward reproduces exactly what you just watched
+  const HISTORY_MAX = 120;
+  let history = [];
 
   function newWorld(mode, seed) {
     world = new L.World(GW, GH, { mode, seed: seed == null ? (Math.random() * 1e9) | 0 : seed });
@@ -224,6 +229,7 @@
     else if (preset === "gliders") world.seedGliders();
     else world.seedRandom();
     world._baseUE = null;
+    history = [];
     applyUE();
     draw(); updateStats();
   }
@@ -276,9 +282,19 @@
   }
 
   function tick() {
+    history.push(world.snapshot());
+    if (history.length > HISTORY_MAX) history.shift();
     injectNoise();
     if (world.mode === L.MODE_BERGEN) scaleUEStep();
     world.step();
+    draw(); updateStats();
+  }
+
+  function stepBack() {
+    setPlaying(false);
+    const snap = history.pop();
+    if (!snap) return;
+    world.restore(snap);
     draw(); updateStats();
   }
 
@@ -350,8 +366,9 @@
   // --- controls ---
   document.getElementById("playBtn").onclick = () => setPlaying(!playing);
   document.getElementById("stepBtn").onclick = () => { setPlaying(false); tick(); };
+  document.getElementById("backBtn").onclick = stepBack;
   document.getElementById("resetBtn").onclick = () => { newWorld(document.getElementById("modeSel").value); };
-  document.getElementById("clearBtn").onclick = () => { setPlaying(false); world.clear(); world._baseUE = null; draw(); updateStats(); };
+  document.getElementById("clearBtn").onclick = () => { setPlaying(false); world.clear(); world._baseUE = null; history = []; draw(); updateStats(); };
   document.getElementById("modeSel").onchange = (e) => {
     const showBergen = e.target.value === "bergen";
     document.getElementById("sliders").style.display = showBergen ? "" : "none";

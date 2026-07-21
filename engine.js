@@ -81,7 +81,18 @@
     this.w = w;
     this.h = h;
     this.mode = opts.mode || MODE_BERGEN;
-    this.rng = mulberry32(opts.seed == null ? 42 : opts.seed);
+    // RNG state lives on the instance (not in a closure) so snapshots can
+    // capture and restore it — rewinding then stepping forward reproduces
+    // the exact same trajectory.
+    this._rngState = (opts.seed == null ? 42 : opts.seed) >>> 0;
+    const self = this;
+    this.rng = function () {
+      self._rngState |= 0;
+      self._rngState = (self._rngState + 0x6d2b79f5) | 0;
+      let t = Math.imul(self._rngState ^ (self._rngState >>> 15), 1 | self._rngState);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
     this.step_ = 0;
     const n = w * h;
     // State arrays
@@ -371,6 +382,24 @@
   World.prototype.step = function () {
     if (this.mode === MODE_CONWAY) this.stepConway();
     else this.stepBergen();
+  };
+
+  // Full-state snapshot for step-back / replay. Includes RNG state, so
+  // restore() followed by step() reproduces the exact same trajectory.
+  const SNAP_ARRAYS = ["energy", "prevAlive", "alive", "ti", "sg", "ft", "ue",
+    "arPred", "lastNbFrac", "hEff", "status", "flipCount", "integrated"];
+
+  World.prototype.snapshot = function () {
+    const s = { step_: this.step_, _rngState: this._rngState, mode: this.mode };
+    for (const k of SNAP_ARRAYS) s[k] = this[k].slice();
+    return s;
+  };
+
+  World.prototype.restore = function (s) {
+    this.step_ = s.step_;
+    this._rngState = s._rngState;
+    this.mode = s.mode;
+    for (const k of SNAP_ARRAYS) this[k].set(s[k]);
   };
 
   World.prototype.stats = function () {
